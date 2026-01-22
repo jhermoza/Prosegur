@@ -1,0 +1,12 @@
+{
+  "profiles": {
+    "Prosegur.Backend": {
+      "commandName": "Project",
+      "launchBrowser": true,
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      },
+      "applicationUrl": "https://localhost:61241;http://localhost:61242"
+    }
+  }
+}

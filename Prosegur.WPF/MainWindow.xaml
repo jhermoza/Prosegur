@@ -1,0 +1,367 @@
+<Window x:Class="Prosegur.WPF.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:converters="clr-namespace:Prosegur.WPF.Converters"
+        xmlns:vm="clr-namespace:Prosegur.WPF.ViewModels"
+        d:DataContext="{d:DesignInstance Type=vm:MainViewModel}"
+        mc:Ignorable="d"
+        Title="Prosegur POS - Payment System" 
+        Height="650" 
+        Width="900"
+        WindowStartupLocation="CenterScreen"
+        Background="#F5F5F5">
+
+    <!-- 
+    MVVM Architecture Note:
+    - No code-behind logic (MainWindow.xaml.cs is minimal)
+    - All logic is in MainViewModel
+    - DataContext is injected via DI in App.xaml.cs
+    - Commands are bound to ViewModel methods
+    - Properties use INotifyPropertyChanged via CommunityToolkit.Mvvm
+    -->
+
+    <Window.Resources>
+        <!-- Register Value Converters -->
+        <converters:BooleanToVisibilityConverter x:Key="BoolToVisibility"/>
+        <converters:StatusToColorConverter x:Key="StatusToColor"/>
+        <converters:InverseBooleanConverter x:Key="InverseBool"/>
+
+        <!-- Button Style -->
+        <Style x:Key="ModernButton" TargetType="Button">
+            <Setter Property="Background" Value="#667EEA"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="FontSize" Value="16"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Padding" Value="20,12"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                CornerRadius="8"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" 
+                                            VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#5568D3"/>
+                </Trigger>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Background" Value="#CCCCCC"/>
+                    <Setter Property="Cursor" Value="Arrow"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- Secondary Button Style -->
+        <Style x:Key="SecondaryButton" TargetType="Button" BasedOn="{StaticResource ModernButton}">
+            <Setter Property="Background" Value="#6C757D"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#5A6268"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- Card Style -->
+        <Style x:Key="Card" TargetType="Border">
+            <Setter Property="Background" Value="White"/>
+            <Setter Property="CornerRadius" Value="12"/>
+            <Setter Property="Padding" Value="30"/>
+            <Setter Property="Effect">
+                <Setter.Value>
+                    <DropShadowEffect Color="#000000" 
+                                    Opacity="0.1" 
+                                    BlurRadius="20" 
+                                    ShadowDepth="2"/>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <Border Grid.Row="0" 
+                Background="#667EEA" 
+                Padding="30,20">
+            <StackPanel>
+                <TextBlock Text="💳 Prosegur Point of Sale"
+                          FontSize="28"
+                          FontWeight="Bold"
+                          Foreground="White"/>
+                <TextBlock Text="Payment Processing System"
+                          FontSize="14"
+                          Foreground="#E0E0E0"
+                          Margin="0,5,0,0"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Main Content -->
+        <ScrollViewer Grid.Row="1" 
+                     VerticalScrollBarVisibility="Auto"
+                     Padding="40">
+            <StackPanel MaxWidth="800">
+
+                <!-- Payment Input Card -->
+                <Border Style="{StaticResource Card}" 
+                        Margin="0,0,0,25">
+                    <StackPanel>
+                        <TextBlock Text="New Payment"
+                                  FontSize="22"
+                                  FontWeight="SemiBold"
+                                  Margin="0,0,0,20"/>
+
+                        <!-- Amount Input -->
+                        <Label Content="Payment Amount (USD)"
+                              FontSize="14"
+                              FontWeight="SemiBold"
+                              Foreground="#333"/>
+                        <Grid Margin="0,5,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <Border Grid.Column="0"
+                                   Background="#F0F0F0"
+                                   CornerRadius="6,0,0,6"
+                                   Padding="15,0"
+                                   BorderBrush="#CCCCCC"
+                                   BorderThickness="1,1,0,1">
+                                <TextBlock Text="$" 
+                                          FontSize="20"
+                                          FontWeight="Bold"
+                                          VerticalAlignment="Center"
+                                          Foreground="#666"/>
+                            </Border>
+
+                            <TextBox Grid.Column="1"
+                                    Text="{Binding Amount, UpdateSourceTrigger=PropertyChanged}"
+                                    FontSize="20"
+                                    Padding="15,10"
+                                    BorderBrush="#CCCCCC"
+                                    BorderThickness="0,1,1,1"
+                                    IsEnabled="{Binding IsProcessing, Converter={StaticResource InverseBool}}">
+                                <TextBox.Style>
+                                    <Style TargetType="TextBox">
+                                        <Setter Property="Template">
+                                            <Setter.Value>
+                                                <ControlTemplate TargetType="TextBox">
+                                                    <Border Background="{TemplateBinding Background}"
+                                                           BorderBrush="{TemplateBinding BorderBrush}"
+                                                           BorderThickness="{TemplateBinding BorderThickness}"
+                                                           CornerRadius="0,6,6,0"
+                                                           Padding="{TemplateBinding Padding}">
+                                                        <ScrollViewer x:Name="PART_ContentHost"/>
+                                                    </Border>
+                                                </ControlTemplate>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </Style>
+                                </TextBox.Style>
+                            </TextBox>
+                        </Grid>
+
+                        <!-- Action Buttons -->
+                        <Grid Margin="0,25,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="10"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <!-- Process Payment Button -->
+                            <Button Grid.Column="0"
+                                   Content="💳 Process Payment"
+                                   Style="{StaticResource ModernButton}"
+                                   Command="{Binding ProcessPaymentCommand}"/>
+
+                            <!-- Reset Button -->
+                            <Button Grid.Column="2"
+                                   Content="🔄 Reset"
+                                   Style="{StaticResource SecondaryButton}"
+                                   Command="{Binding ResetPaymentCommand}"/>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- Payment Status Card -->
+                <Border Style="{StaticResource Card}">
+                    <StackPanel>
+                        <TextBlock Text="Payment Status"
+                                  FontSize="22"
+                                  FontWeight="SemiBold"
+                                  Margin="0,0,0,20"/>
+
+                        <!-- Status Display -->
+                        <Border Background="#F8F9FA"
+                               CornerRadius="8"
+                               Padding="20"
+                               Margin="0,0,0,20">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <!-- Status Badge -->
+                                <Border Grid.Row="0"
+                                       Background="{Binding Status, Converter={StaticResource StatusToColor}}"
+                                       CornerRadius="20"
+                                       Padding="20,10"
+                                       HorizontalAlignment="Center">
+                                    <TextBlock Text="{Binding Status}"
+                                             FontSize="18"
+                                             FontWeight="Bold"
+                                             Foreground="White"/>
+                                </Border>
+
+                                <!-- Status Message -->
+                                <TextBlock Grid.Row="1"
+                                          Text="{Binding StatusMessage}"
+                                          FontSize="16"
+                                          TextAlignment="Center"
+                                          TextWrapping="Wrap"
+                                          Foreground="#666"
+                                          Margin="0,15,0,0"/>
+                            </Grid>
+                        </Border>
+
+                        <!-- Progress Indicator -->
+                        <ProgressBar Height="8"
+                                    IsIndeterminate="True"
+                                    Visibility="{Binding IsProcessing, Converter={StaticResource BoolToVisibility}}"
+                                    Margin="0,0,0,20"
+                                    Foreground="#667EEA"/>
+
+                        <!-- Payment Details -->
+                        <Grid Visibility="{Binding IsProcessing, Converter={StaticResource BoolToVisibility}}">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="150"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <!-- Payment ID -->
+                            <TextBlock Grid.Row="0" Grid.Column="0"
+                                      Text="Payment ID:"
+                                      FontWeight="SemiBold"
+                                      Foreground="#666"
+                                      Margin="0,0,0,10"/>
+                            <TextBlock Grid.Row="0" Grid.Column="1"
+                                      Text="{Binding PaymentId}"
+                                      FontFamily="Courier New"
+                                      FontSize="12"
+                                      Foreground="#333"
+                                      TextWrapping="Wrap"
+                                      Margin="0,0,0,10"/>
+
+                            <!-- Created At -->
+                            <TextBlock Grid.Row="1" Grid.Column="0"
+                                      Text="Created At:"
+                                      FontWeight="SemiBold"
+                                      Foreground="#666"
+                                      Margin="0,0,0,10"/>
+                            <TextBlock Grid.Row="1" Grid.Column="1"
+                                      Text="{Binding CreatedAt, StringFormat='{}{0:yyyy-MM-dd HH:mm:ss}'}"
+                                      Foreground="#333"
+                                      Margin="0,0,0,10"/>
+
+                            <!-- Updated At -->
+                            <TextBlock Grid.Row="2" Grid.Column="0"
+                                      Text="Last Updated:"
+                                      FontWeight="SemiBold"
+                                      Foreground="#666"
+                                      Margin="0,0,0,10"/>
+                            <TextBlock Grid.Row="2" Grid.Column="1"
+                                      Text="{Binding UpdatedAt, StringFormat='{}{0:yyyy-MM-dd HH:mm:ss}'}"
+                                      Foreground="#333"
+                                      Margin="0,0,0,10"/>
+
+                            <!-- Polling Indicator -->
+                            <TextBlock Grid.Row="3" Grid.Column="0"
+                                      Text="Polling:"
+                                      FontWeight="SemiBold"
+                                      Foreground="#666"/>
+                            <StackPanel Grid.Row="3" Grid.Column="1" 
+                                       Orientation="Horizontal">
+                                <Ellipse Width="10" Height="10" 
+                                        Fill="#667EEA"
+                                        Margin="0,0,8,0">
+                                    <Ellipse.Triggers>
+                                        <EventTrigger RoutedEvent="Loaded">
+                                            <BeginStoryboard>
+                                                <Storyboard RepeatBehavior="Forever">
+                                                    <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                                   From="1.0" To="0.0" Duration="0:0:1"
+                                                                   AutoReverse="True"/>
+                                                </Storyboard>
+                                            </BeginStoryboard>
+                                        </EventTrigger>
+                                    </Ellipse.Triggers>
+                                </Ellipse>
+                                <TextBlock Text="Checking server every 2 seconds..."
+                                          Foreground="#667EEA"
+                                          FontStyle="Italic"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- Info Box -->
+                        <Border Background="#E7F3FF"
+                               BorderBrush="#2196F3"
+                               BorderThickness="1"
+                               CornerRadius="6"
+                               Padding="15"
+                               Margin="0,20,0,0">
+                            <StackPanel>
+                                <TextBlock FontWeight="SemiBold" 
+                                          Foreground="#1976D2"
+                                          Margin="0,0,0,5">
+                                    ℹ️ How it works:
+                                </TextBlock>
+                                <TextBlock TextWrapping="Wrap"
+                                          Foreground="#333"
+                                          FontSize="13">
+                                    1. Click "Process Payment" to create a payment request
+                                </TextBlock>
+                                <TextBlock TextWrapping="Wrap"
+                                          Foreground="#333"
+                                          FontSize="13">
+                                    2. Open http://localhost:5000/simulation in your browser
+                                </TextBlock>
+                                <TextBlock TextWrapping="Wrap"
+                                          Foreground="#333"
+                                          FontSize="13">
+                                    3. Use the dashboard to approve, decline, or cancel the payment
+                                </TextBlock>
+                                <TextBlock TextWrapping="Wrap"
+                                          Foreground="#333"
+                                          FontSize="13">
+                                    4. This POS will automatically update (polling every 2 seconds)
+                                </TextBlock>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </Border>
+
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</Window>

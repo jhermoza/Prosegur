@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- CommunityToolkit.Mvvm: Source generators for MVVM pattern -->
+    <!-- Provides [ObservableProperty], [RelayCommand], etc. -->
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.3.2" />
+    
+    <!-- Microsoft.Extensions packages for Dependency Injection -->
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.1" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.1" />
+    <PackageReference Include="Microsoft.Extensions.Http" Version="8.0.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Reference to shared DTOs -->
+    <ProjectReference Include="..\Prosegur.Shared\Prosegur.Shared.csproj" />
+  </ItemGroup>
+
+</Project>

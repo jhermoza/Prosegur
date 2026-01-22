@@ -1,0 +1,12 @@
+<Application x:Class="Prosegur.WPF.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!-- 
+    Note: StartupUri is intentionally removed.
+    Application startup is controlled by App.xaml.cs using Dependency Injection.
+    This allows us to inject dependencies into MainWindow and MainViewModel.
+    -->
+    <Application.Resources>
+         
+    </Application.Resources>
+</Application>

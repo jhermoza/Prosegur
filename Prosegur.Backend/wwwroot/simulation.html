@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Payment Simulation Dashboard</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container { 
+            max-width: 1200px; 
+            margin: 0 auto; 
+        }
+        
+        .header {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            margin-bottom: 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .header-left h1 {
+            color: #2c3e50;
+            font-size: 28px;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+        
+        .header-left p {
+            color: #7f8c8d;
+            font-size: 14px;
+        }
+        
+        .header-right {
+            text-align: right;
+        }
+        
+        .counter {
+            background: #667eea;
+            color: white;
+            padding: 15px 25px;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+        }
+        
+        .counter span {
+            font-size: 32px;
+            display: block;
+            margin-bottom: 5px;
+        }
+        
+        .btn-refresh {
+            background: white;
+            border: 2px solid #667eea;
+            color: #667eea;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s;
+            margin-top: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .btn-refresh:hover {
+            background: #667eea;
+            color: white;
+        }
+        
+        .btn-refresh::before {
+            content: '';
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border: 2px solid currentColor;
+            border-top-color: transparent;
+            border-radius: 50%;
+            margin-right: 8px;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .payment-card { 
+            background: white; 
+            padding: 25px; 
+            margin-bottom: 20px; 
+            border-radius: 15px; 
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            display: grid;
+            grid-template-columns: 1fr 2fr 1fr;
+            gap: 20px;
+            align-items: center;
+            transition: transform 0.2s;
+        }
+        
+        .payment-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+        }
+        
+        .payment-info {
+            border-right: 2px solid #ecf0f1;
+            padding-right: 20px;
+        }
+        
+        .payment-id { 
+            font-size: 11px; 
+            color: #95a5a6;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 5px;
+        }
+        
+        .payment-amount { 
+            font-size: 32px; 
+            font-weight: 700; 
+            color: #2c3e50;
+            margin: 10px 0;
+        }
+        
+        .payment-status { 
+            display: inline-block; 
+            padding: 6px 12px; 
+            background: #f39c12;
+            color: white; 
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        
+        .payment-details {
+            padding: 0 20px;
+        }
+        
+        .payment-details p {
+            color: #7f8c8d;
+            font-size: 13px;
+            margin: 5px 0;
+        }
+        
+        .payment-details strong {
+            color: #2c3e50;
+            font-weight: 600;
+        }
+        
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+        
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .btn:hover { 
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        
+        .btn-success { 
+            background: #27ae60; 
+            color: white; 
+        }
+        
+        .btn-success:hover { background: #229954; }
+        
+        .btn-danger { 
+            background: #e74c3c; 
+            color: white; 
+        }
+        
+        .btn-danger:hover { background: #c0392b; }
+        
+        .btn-warning { 
+            background: #95a5a6; 
+            color: white; 
+        }
+        
+        .btn-warning:hover { background: #7f8c8d; }
+        
+        .no-payments {
+            background: white;
+            padding: 60px;
+            border-radius: 15px;
+            text-align: center;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        
+        .no-payments-icon {
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 20px;
+            border: 4px solid #ecf0f1;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 36px;
+            color: #bdc3c7;
+            font-weight: 300;
+        }
+        
+        .no-payments h2 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+        
+        .no-payments p {
+            color: #7f8c8d;
+        }
+        
+        @media (max-width: 768px) {
+            .payment-card {
+                grid-template-columns: 1fr;
+                gap: 15px;
+            }
+            
+            .payment-info {
+                border-right: none;
+                border-bottom: 2px solid #ecf0f1;
+                padding-right: 0;
+                padding-bottom: 15px;
+            }
+            
+            .action-buttons {
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="header-left">
+                <h1>Payment Simulation Dashboard</h1>Refresh
+                <p>Prosegur POS - Real-time Payment Processing</p>
+            </div>
+            <div class="header-right">
+                <div class="counter">
+                    <span id="count">0</span>
+                    Pending Payments
+                </div>
+                <button onclick="loadPayments()" class="btn-refresh">Refresh Now</button>
+            </div>
+        </div>
+        <div id="payments"></div>
+    </div>
+
+    <script>
+        async function loadPayments() {
+            try {
+                const response = await fetch('/api/payments/pending');
+                const payments = await response.json();
+                
+                document.getElementById('count').textContent = payments.length;
+                
+                const container = document.getElementById('payments');
+                if (payments.length === 0) {
+                    container.innerHTML = `
+                        <div class="no-payments">
+                            <div class="no-payments-icon">0</div>
+                            <h2>No Pending Payments</h2>
+                            <p>All payments have been processed. New payments will appear here automatically.</p>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                container.innerHTML = payments.map(payment => `
+                    <div class="payment-card">
+                        <div class="payment-info">
+                            <div class="payment-id">Payment ID</div>
+                            <div class="payment-amount">$${payment.amount.toFixed(2)}</div>
+                            <span class="payment-status">${payment.status}</span>
+                        </div>
+                        <div class="payment-details">
+                            <p><strong>ID:</strong> ${payment.paymentId}</p>
+                            <p><strong>Created:</strong> ${new Date(payment.createdAt).toLocaleString()}</p>
+                            <p><strong>Updated:</strong> ${new Date(payment.updatedAt).toLocaleString()}</p>
+                        </div>
+                        <div class="action-buttons">
+                            <button class="btn btn-success" onclick="approve('${payment.paymentId}')">
+                                Approve
+                            </button>
+                            <button class="btn btn-danger" onclick="decline('${payment.paymentId}')">
+                                Decline
+                            </button>
+                            <button class="btn btn-warning" onclick="cancel('${payment.paymentId}')">
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                console.error('Error loading payments:', error);
+            }
+        }
+
+        async function approve(paymentId) {
+            try {
+                await fetch(`/api/payments/${paymentId}/confirm?shouldSucceed=true`, { method: 'POST' });
+                loadPayments();
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+
+        async function decline(paymentId) {
+            try {
+                await fetch(`/api/payments/${paymentId}/confirm?shouldSucceed=false`, { method: 'POST' });
+                loadPayments();
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+
+        async function cancel(paymentId) {
+            try {
+                await fetch(`/api/payments/${paymentId}/cancel`, { method: 'POST' });
+                loadPayments();
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+
+        // Auto-refresh cada 3 segundos
+        loadPayments();
+        setInterval(loadPayments, 3000);
+    </script>
+</body>
+</html>

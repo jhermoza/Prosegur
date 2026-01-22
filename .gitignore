@@ -1,0 +1,52 @@
+# .NET build artifacts
+bin/
+obj/
+*.user
+*.suo
+*.cache
+.vs/
+
+# NuGet packages
+*.nupkg
+packages/
+
+# User-specific files
+*.rsuser
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Visual Studio Code
+.vscode/
+*.code-workspace
+
+# Rider
+.idea/
+*.sln.iml
+
+# Windows
+Thumbs.db
+Desktop.ini
+
+# macOS
+.DS_Store
+
+# Logs
+*.log
+
+# Publish profiles
+*.pubxml
+*.PublishSettings
+
+# Database
+*.db
+*.sqlite
+
+# Environment files
+.env
+.env.local
+
+# Sensitive configuration (DO NOT COMMIT)
+appsettings.Development.json
+appsettings.Production.json
