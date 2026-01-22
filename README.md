@@ -48,45 +48,13 @@ Prosegur/
 
 ---
 
-## 🔧 Decisiones Técnicas Clave
+## 🔧 Decisiones Técnicas
 
-### 1. **Terminal State Preservation**
-```csharp
-// StripeService.cs - GetPaymentStatusAsync
-if (cachedResponse.Status is "APPROVED" or "DECLINED" or "FAILED")
-    return cachedResponse; // NO consultar Stripe
-```
-**Problema resuelto:** Polling de WPF sobreescribía DECLINED con PENDING porque Stripe tarda en actualizar.
-
-### 2. **Payment Availability Verification**
-```csharp
-// StripeService.cs - CreatePaymentIntentAsync
-await Task.Delay(100);
-paymentIntent = await _paymentIntentService.GetAsync(paymentIntent.Id);
-```
-**Problema resuelto:** Dashboard mostraba pago antes de estar disponible → error 404 al clickear.
-
-### 3. **Decline via Exception Handling**
-```csharp
-// StripeService.cs - ConfirmPaymentAsync
-var paymentMethodId = shouldSucceed ? "pm_card_visa" : "pm_card_chargeDeclined";
-try {
-    await _paymentIntentService.ConfirmAsync(paymentId, ...);
-} catch (StripeException ex) {
-    // pm_card_chargeDeclined lanza excepción → DECLINED
-}
-```
-**Razón:** Stripe rechaza con excepción, no con status code.
-
-### 4. **ConcurrentDictionary vs Base de Datos**
-- In-memory para simplicidad (prueba técnica)
-- Thread-safe sin locks
-- Migración a Redis/SQL trivial (misma interfaz)
-
-### 5. **Polling vs SignalR**
-- 2-3 segundos aceptable para POS
-- Menos infraestructura
-- Migración a SignalR simple (misma arquitectura)
+- **Almacenamiento**: ConcurrentDictionary in-memory (thread-safe para prueba técnica)
+- **Comunicación**: Polling HTTP (WPF: 2s, Dashboard: 3s)
+- **Autenticación Stripe**: ApiKey en appsettings.json (modo test)
+- **Captura**: Manual (`capture_method: manual` + `/capture` explícito)
+- **Test Cards**: `pm_card_visa` (aprueba) / `pm_card_chargeDeclined` (rechaza)
 
 ---
 
@@ -101,7 +69,8 @@ Editar `Prosegur.Backend/appsettings.json`:
 ```json
 {
   "Stripe": {
-    "SecretKey": "sk_test_TU_CLAVE_AQUI"
+    "SecretKey": "sk_test_TU_CLAVE_AQUI",
+    "PublishableKey": "pk_test_TU_CLAVE_AQUI"
   }
 }
 ```
