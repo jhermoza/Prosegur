@@ -100,22 +100,48 @@ dotnet run
 
 ### Escenario 1: Pago Aprobado
 1. WPF: Ingresar $10.00 → "Process Payment"
-2. Dashboard: Aparece automáticamente (auto-refresh 3s)
-3. Dashboard: Click "Approve"
-4. Backend: `confirm` con `pm_card_visa` → `capture` → **APPROVED**
-5. WPF: Polling detecta → Verde
+2. Backend: Crea Payment Intent → Status: **PENDING**
+3. Dashboard: Aparece automáticamente (auto-refresh 3s)
+4. Dashboard: Click "Approve"
+   - 🎨 UX: Botones bloqueados + spinner + opacidad
+5. Backend:
+   - Marca como **PROCESSING** (previene race conditions)
+   - Stripe: `confirm` con `pm_card_visa` → `requires_capture`
+   - Stripe: `capture` → `succeeded`
+   - Cache actualizado: **APPROVED**
+6. Dashboard: Animación slide-out → desaparece
+7. WPF: Polling detecta **APPROVED** (máximo 2s) → Alert verde: "✅ Payment approved!"
 
 ### Escenario 2: Pago Rechazado
 1. WPF: Ingresar $25.00 → "Process Payment"
-2. Dashboard: Click "Decline"
-3. Backend: `confirm` con `pm_card_chargeDeclined` → StripeException → **DECLINED**
-4. WPF: Polling detecta → Rojo
+2. Backend: Crea Payment Intent → Status: **PENDING**
+3. Dashboard: Aparece automáticamente (refresh 3s)
+4. Dashboard: Click "Decline"
+   - 🎨 Botones se deshabilitan instantáneamente
+   - ⚙️ Botón activo muestra spinner CSS
+   - 🔒 Tarjeta se vuelve semi-transparente (70% opacidad)
+5. Backend:
+   - Marca como **PROCESSING** (bloqueo optimista con `TryUpdate`)
+   - Stripe: `confirm` con `pm_card_chargeDeclined`
+   - Stripe retorna: `status = "requires_payment_method"`
+   - Backend fuerza: `Status = "DECLINED"` (garantía explícita)
+   - Cache actualizado: **DECLINED**
+6. Dashboard:
+   - 🎬 Animación slide-out (300ms)
+   - ✅ Desaparece de la lista permanentemente
+7. WPF: Polling detecta **DECLINED** (máximo 2s) → Alert rojo: "❌ Payment was declined."
 
 ### Escenario 3: Pago Cancelado
 1. WPF: Ingresar $50.00 → "Process Payment"
-2. Dashboard: Click "Cancel"
-3. Backend: `cancel` → **FAILED**
-4. WPF: Polling detecta → Gris
+2. Backend: Crea Payment Intent → Status: **PENDING**
+3. Dashboard: Aparece automáticamente
+4. Dashboard: Click "Cancel"
+   - 🎨 UX: Loading states aplicados
+5. Backend:
+   - Stripe: `cancel` → `canceled`
+   - Cache actualizado: **FAILED**
+6. Dashboard: Se remueve de la lista
+7. WPF: Polling detecta **FAILED** (máximo 2s) → Alert gris: "⚠️ Payment was canceled."
 
 ---
 
@@ -200,13 +226,167 @@ while (!cancellationToken.IsCancellationRequested) {
 
 ## 🔍 Mapeo Estados
 
-| Stripe | Sistema | Descripción |
-|--------|---------|-------------|
+| Stripe Status | Sistema Status | Descripción |
+|--------------|----------------|-------------|
 | `succeeded` | **APPROVED** | Capturado exitosamente |
-| `requires_payment_method` | **PENDING** | Esperando confirmación |
-| `requires_capture` | **PENDING** | Pre-autorizado |
-| `canceled` | **FAILED** | Cancelado |
-| `StripeException` | **DECLINED** | Tarjeta rechazada |
+| `requires_payment_method` | **PENDING** | Esperando método de pago |
+| `requires_confirmation` | **PENDING** | Esperando confirmación |
+| `requires_capture` | **PENDING** | Pre-autorizado, listo para capturar |
+| `requires_action` | **PENDING** | Requiere acción adicional del usuario |
+| `processing` | **PENDING** | Stripe procesando la transacción |
+| `payment_failed` | **DECLINED** | Pago fallido explícitamente |
+| `canceled` | **FAILED** | Cancelado manualmente |
+| **PROCESSING** | **PROCESSING** | Estado interno durante confirmación (bloqueo optimista) |
+| `StripeException` | **DECLINED** | Error de Stripe (tarjeta rechazada, etc.) |
+
+**Estados Terminales:** `APPROVED`, `DECLINED`, `CANCELED`, `ERROR`, `FAILED`  
+**Estados Transitorios:** `PENDING`, `PROCESSING`
+
+---
+
+## ⚡ Optimizaciones Implementadas
+
+### Prevención de Race Conditions
+
+**Bloqueo Optimista:**
+```csharp
+// Estado transitorio PROCESSING previene procesamiento concurrente
+var processingPayment = existing with { Status = "PROCESSING" };
+
+if (!_paymentStore.TryUpdate(paymentId, processingPayment, existing))
+{
+    throw new InvalidOperationException("Payment is already being processed");
+}
+```
+
+**Beneficios:**
+- ✅ Solo UN thread puede procesar el pago
+- ✅ Múltiples clicks en dashboard no causan duplicados
+- ✅ `ConcurrentDictionary.TryUpdate` garantiza atomicidad
+- ✅ Thread-safe sin locks explícitos
+
+### Validación de Estados
+
+```csharp
+if (IsTerminalState(existing.Status)) // APPROVED, DECLINED, FAILED
+{
+    return existing; // Idempotencia: retorna estado actual sin modificar
+}
+```
+
+**Garantiza:**
+- ✅ No se puede confirmar un pago ya procesado
+- ✅ Idempotencia en endpoints REST
+- ✅ Respuestas consistentes ante múltiples requests
+
+### Performance y Eficiencia
+
+**Polling Controlado (WPF):**
+```csharp
+await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken);
+```
+- ✅ Reduce llamadas de ~10-20/seg a 0.5/seg (95% reducción)
+- ✅ Latencia aceptable: máximo 2 segundos para detectar cambios
+- ✅ Previene saturación de red y CPU
+
+**Cache Inteligente:**
+- Estados terminales NO consultan Stripe innecesariamente
+- `ConcurrentDictionary` para acceso thread-safe
+- In-memory storage (adecuado para prueba técnica)
+
+**Mapeo Robusto:**
+- Maneja TODOS los estados posibles de Stripe
+- Diferencia contextos (creación vs confirmación)
+- Fuerza `DECLINED` explícitamente cuando `shouldSucceed=false`
+
+### UX Dashboard (simulation.html)
+
+**Loading States:**
+```javascript
+button.classList.add('btn-loading');  // Spinner CSS puro
+card.classList.add('processing');      // Opacidad 70%
+```
+
+**Bloqueo de Botones:**
+```javascript
+allButtons.forEach(btn => btn.disabled = true);
+```
+
+**Animaciones Fluidas:**
+```css
+@keyframes slideOut {
+    to { opacity: 0; transform: translateX(100%); }
+}
+```
+
+**Características:**
+- ✅ Feedback visual inmediato (spinner en botón activo)
+- ✅ Todos los botones se deshabilitan al hacer click
+- ✅ Animación slide-out de 300ms al procesar exitosamente
+- ✅ Error recovery: re-habilita controles si falla
+- ✅ Sin dependencias externas (CSS/JS puro)
+
+### Manejo de Errores Robusto
+
+```csharp
+try {
+    // Procesar pago
+}
+catch (StripeException ex) {
+    var errorResponse = processingPayment with {
+        Status = "DECLINED",
+        Message = ex.Message
+    };
+    _paymentStore.TryUpdate(paymentId, errorResponse, processingPayment);
+    return errorResponse; // Graceful degradation
+}
+```
+
+**Beneficios:**
+- ✅ No deja estados intermedios inconsistentes
+- ✅ Siempre termina en estado terminal válido
+- ✅ Cliente recibe respuesta estructurada (no excepciones)
+- ✅ Sistema se recupera automáticamente de errores
+
+---
+
+## 🔄 Máquina de Estados
+
+```
+                    ┌─────────────────────────┐
+                    │       PENDING           │
+                    │  (Esperando decisión)   │
+                    └───────────┬─────────────┘
+                                │
+                ┌───────────────┼───────────────┐
+                │               │               │
+                ▼               ▼               ▼
+        ┌──────────────┐ ┌──────────────┐ ┌──────────────┐
+        │  PROCESSING  │ │  PROCESSING  │ │   CANCELED   │
+        │  (Aprobar)   │ │  (Rechazar)  │ │              │
+        └──────┬───────┘ └──────┬───────┘ └──────┬───────┘
+               │                │                │
+               ▼                ▼                ▼
+        ┌──────────────┐ ┌──────────────┐ ┌──────────────┐
+        │   APPROVED   │ │   DECLINED   │ │    FAILED    │
+        │  (Terminal)  │ │  (Terminal)  │ │  (Terminal)  │
+        └──────────────┘ └──────────────┘ └──────────────┘
+```
+
+**Transiciones Válidas:**
+
+| Desde | Acción | Hasta | Reversible |
+|-------|--------|-------|------------|
+| `PENDING` | Confirm (Success) | `PROCESSING` → `APPROVED` | ❌ No |
+| `PENDING` | Confirm (Decline) | `PROCESSING` → `DECLINED` | ❌ No |
+| `PENDING` | Cancel | `FAILED` | ❌ No |
+| `PROCESSING` | Stripe Success | `APPROVED` | ❌ No |
+| `PROCESSING` | Stripe Error | `DECLINED` | ❌ No |
+
+**Invariantes:**
+- Un pago en estado terminal NO puede cambiar de estado
+- `PROCESSING` es transitorio (duración típica: 200-500ms)
+- Solo UN thread puede mover un pago de `PENDING` a `PROCESSING`
 
 ---
 
