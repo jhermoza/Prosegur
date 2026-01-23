@@ -24,11 +24,10 @@ public partial class App : Application
                 services.AddSingleton<IPaymentService, PaymentService>();
                 services.AddSingleton<MainViewModel>();
                 
-                services.AddTransient<MainWindow>(provider =>
+                services.AddSingleton<MainWindow>(provider =>
                 {
-                    var window = new MainWindow();
-                    window.DataContext = provider.GetRequiredService<MainViewModel>();
-                    return window;
+                    var viewModel = provider.GetRequiredService<MainViewModel>();
+                    return new MainWindow { DataContext = viewModel };
                 });
             })
             .Build();
@@ -36,9 +35,24 @@ public partial class App : Application
 
     protected override async void OnStartup(StartupEventArgs e)
     {
-        await _host.StartAsync();
-        var mainWindow = _host.Services.GetRequiredService<MainWindow>();
-        mainWindow.Show();
+        try
+        {
+            await _host.StartAsync();
+            var mainWindow = _host.Services.GetRequiredService<MainWindow>();
+            mainWindow.Show();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(
+                $"Error starting application:\n{ex.Message}",
+                "Startup Error",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error
+            );
+            Shutdown(-1);
+            return;
+        }
+        
         base.OnStartup(e);
     }
 
@@ -47,10 +61,9 @@ public partial class App : Application
         var viewModel = _host.Services.GetService<MainViewModel>();
         viewModel?.Cleanup();
 
-        {
-            await _host.StopAsync(TimeSpan.FromSeconds(5));
-        }
-
+        await _host.StopAsync(TimeSpan.FromSeconds(5));
+        _host.Dispose();
+        
         base.OnExit(e);
     }
 }

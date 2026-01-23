@@ -22,6 +22,16 @@ public class PaymentService : IPaymentService
 
     public async Task<PaymentStatusResponse> CreatePaymentAsync(PaymentRequest request)
     {
+        if (request == null)
+        {
+            throw new ArgumentNullException(nameof(request));
+        }
+
+        if (request.Amount <= 0)
+        {
+            throw new ArgumentException("Amount must be greater than zero", nameof(request));
+        }
+
         try
         {
             var idempotencyKey = Guid.NewGuid().ToString();
@@ -34,12 +44,8 @@ public class PaymentService : IPaymentService
             var response = await _httpClient.SendAsync(httpRequest);
             response.EnsureSuccessStatusCode();
 
-            var paymentResponse = await response.Content.ReadFromJsonAsync<PaymentStatusResponse>(_jsonOptions);
-            
-            if (paymentResponse == null)
-            {
-                throw new InvalidOperationException("Failed to deserialize payment response");
-            }
+            var paymentResponse = await response.Content.ReadFromJsonAsync<PaymentStatusResponse>(_jsonOptions)
+                ?? throw new InvalidOperationException("Failed to deserialize payment response");
 
             return paymentResponse;
         }
@@ -47,10 +53,19 @@ public class PaymentService : IPaymentService
         {
             throw new InvalidOperationException($"Failed to create payment: {ex.Message}", ex);
         }
+        catch (TaskCanceledException ex)
+        {
+            throw new InvalidOperationException("Request timeout. Please check your connection.", ex);
+        }
     }
 
     public async Task<PaymentStatusResponse> GetPaymentStatusAsync(string paymentId)
     {
+        if (string.IsNullOrWhiteSpace(paymentId))
+        {
+            throw new ArgumentException("Payment ID cannot be null or empty", nameof(paymentId));
+        }
+
         try
         {
             var response = await _httpClient.GetFromJsonAsync<PaymentStatusResponse>(
@@ -68,6 +83,10 @@ public class PaymentService : IPaymentService
         catch (HttpRequestException ex)
         {
             throw new InvalidOperationException($"Failed to get payment status: {ex.Message}", ex);
+        }
+        catch (TaskCanceledException ex)
+        {
+            throw new InvalidOperationException("Request timeout. Please check your connection.", ex);
         }
     }
 }

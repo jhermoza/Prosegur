@@ -59,11 +59,16 @@ public partial class MainViewModel : ObservableObject
 
             var response = await _paymentService.CreatePaymentAsync(request);
 
+            if (string.IsNullOrEmpty(response.PaymentId))
+            {
+                throw new InvalidOperationException("Payment creation failed: Invalid payment ID");
+            }
+
             PaymentId = response.PaymentId;
             Status = response.Status;
             CreatedAt = response.CreatedAt;
             UpdatedAt = response.UpdatedAt;
-            StatusMessage = $"Payment created. Waiting for approval...";
+            StatusMessage = "Payment created. Waiting for approval...";
 
             await StartPollingAsync(response.PaymentId);
         }
@@ -91,18 +96,24 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void ResetPayment()
     {
-        _pollCancellationTokenSource?.Cancel();
-        _pollCancellationTokenSource?.Dispose();
-        _pollCancellationTokenSource = null;
+        if (_pollCancellationTokenSource != null)
+        {
+            _pollCancellationTokenSource.Cancel();
+            _pollCancellationTokenSource.Dispose();
+            _pollCancellationTokenSource = null;
+        }
 
         ResetState();
         StatusMessage = "Ready for new payment";
     }
 
-    // Polls payment status every 2 seconds until reaching terminal state
     private async Task StartPollingAsync(string paymentId)
     {
-        // Create new cancellation token for this polling session
+        if (string.IsNullOrEmpty(paymentId))
+        {
+            throw new ArgumentException("Payment ID cannot be null or empty", nameof(paymentId));
+        }
+
         _pollCancellationTokenSource = new CancellationTokenSource();
         var cancellationToken = _pollCancellationTokenSource.Token;
 
@@ -110,27 +121,19 @@ public partial class MainViewModel : ObservableObject
         {
             while (!cancellationToken.IsCancellationRequested)
             {
-                // Wait 2 seconds between polls (requirement: poll every 2 seconds)
-                // Using Task.Delay instead of Thread.Sleep to keep UI responsive
                 await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken);
 
-                // Query server for current status
                 var statusResponse = await _paymentService.GetPaymentStatusAsync(paymentId);
 
-                // Update UI with latest status (happens on UI thread automatically)
                 Status = statusResponse.Status;
                 UpdatedAt = statusResponse.UpdatedAt;
                 StatusMessage = GetStatusMessage(statusResponse.Status);
 
-                // Check if we've reached a terminal state
                 if (IsTerminalState(statusResponse.Status))
                 {
                     IsProcessing = false;
                     IsCompleted = true;
-
-                    // Show notification to user
                     ShowPaymentResultNotification(statusResponse.Status);
-                    
                     break;
                 }
             }
@@ -148,8 +151,11 @@ public partial class MainViewModel : ObservableObject
         }
         finally
         {
-            _pollCancellationTokenSource?.Dispose();
-            _pollCancellationTokenSource = null;
+            if (_pollCancellationTokenSource != null)
+            {
+                _pollCancellationTokenSource.Dispose();
+                _pollCancellationTokenSource = null;
+            }
         }
     }
 
@@ -198,7 +204,11 @@ public partial class MainViewModel : ObservableObject
 
     public void Cleanup()
     {
-        _pollCancellationTokenSource?.Cancel();
-        _pollCancellationTokenSource?.Dispose();
+        if (_pollCancellationTokenSource != null)
+        {
+            _pollCancellationTokenSource.Cancel();
+            _pollCancellationTokenSource.Dispose();
+            _pollCancellationTokenSource = null;
+        }
     }
 }

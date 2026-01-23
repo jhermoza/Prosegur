@@ -11,9 +11,16 @@ public class StripeService : IStripeService
 
     public StripeService(IConfiguration configuration)
     {
+        if (configuration == null)
+        {
+            throw new ArgumentNullException(nameof(configuration));
+        }
+
         var apiKey = configuration["Stripe:SecretKey"];
-        if (string.IsNullOrEmpty(apiKey))
-            throw new InvalidOperationException("Stripe:SecretKey not configured");
+        if (string.IsNullOrWhiteSpace(apiKey))
+        {
+            throw new InvalidOperationException("Stripe:SecretKey not configured in appsettings.json");
+        }
         
         StripeConfiguration.ApiKey = apiKey;
         _paymentIntentService = new PaymentIntentService();
@@ -24,6 +31,21 @@ public class StripeService : IStripeService
         PaymentRequest request, 
         string idempotencyKey)
     {
+        if (request == null)
+        {
+            throw new ArgumentNullException(nameof(request));
+        }
+
+        if (request.Amount <= 0)
+        {
+            throw new ArgumentException("Amount must be greater than zero", nameof(request));
+        }
+
+        if (string.IsNullOrWhiteSpace(idempotencyKey))
+        {
+            throw new ArgumentException("Idempotency key is required", nameof(idempotencyKey));
+        }
+
         var options = new PaymentIntentCreateOptions
         {
             Amount = (long)(request.Amount * 100),
@@ -40,7 +62,6 @@ public class StripeService : IStripeService
         var requestOptions = new RequestOptions { IdempotencyKey = idempotencyKey };
         var paymentIntent = await _paymentIntentService.CreateAsync(options, requestOptions);
         
-        // Verify availability before returning
         await Task.Delay(100);
         paymentIntent = await _paymentIntentService.GetAsync(paymentIntent.Id);
         
@@ -51,29 +72,41 @@ public class StripeService : IStripeService
 
     public async Task<PaymentStatusResponse> GetPaymentStatusAsync(string paymentId)
     {
+        if (string.IsNullOrWhiteSpace(paymentId))
+        {
+            throw new ArgumentException("Payment ID cannot be null or empty", nameof(paymentId));
+        }
+
         if (_paymentStore.TryGetValue(paymentId, out var cachedResponse))
         {
-            // If already in terminal state, don't update from Stripe
             if (cachedResponse.Status is "APPROVED" or "DECLINED" or "FAILED")
+            {
                 return cachedResponse;
+            }
 
-            // Only update if PENDING
             var paymentIntent = await _paymentIntentService.GetAsync(paymentId);
             var updatedResponse = MapToResponse(paymentIntent, cachedResponse.Amount);
             _paymentStore.TryUpdate(paymentId, updatedResponse, cachedResponse);
             return updatedResponse;
         }
+        
         throw new KeyNotFoundException($"Payment {paymentId} not found");
     }
 
     public async Task<PaymentStatusResponse> ConfirmPaymentAsync(string paymentId, bool shouldSucceed)
     {
+        if (string.IsNullOrWhiteSpace(paymentId))
+        {
+            throw new ArgumentException("Payment ID cannot be null or empty", nameof(paymentId));
+        }
+
         if (!_paymentStore.TryGetValue(paymentId, out var existing))
+        {
             throw new KeyNotFoundException($"Payment {paymentId} not found");
+        }
 
         try
         {
-            // Select payment method based on desired outcome
             var paymentMethodId = shouldSucceed ? "pm_card_visa" : "pm_card_chargeDeclined";
             
             await _paymentIntentService.UpdateAsync(paymentId, new PaymentIntentUpdateOptions
@@ -84,9 +117,10 @@ public class StripeService : IStripeService
             var paymentIntent = await _paymentIntentService.ConfirmAsync(paymentId, 
                 new PaymentIntentConfirmOptions { PaymentMethod = paymentMethodId });
 
-            // If successful and requires capture, capture it
             if (shouldSucceed && paymentIntent.Status == "requires_capture")
+            {
                 paymentIntent = await _paymentIntentService.CaptureAsync(paymentId);
+            }
 
             var response = MapToResponse(paymentIntent, existing.Amount);
             _paymentStore.TryUpdate(paymentId, response, existing);
@@ -94,7 +128,6 @@ public class StripeService : IStripeService
         }
         catch (StripeException ex)
         {
-            // Stripe declined the card
             var errorResponse = existing with
             {
                 Status = "DECLINED",
@@ -108,11 +141,17 @@ public class StripeService : IStripeService
 
     public async Task<PaymentStatusResponse> CancelPaymentAsync(string paymentId)
     {
-        var paymentIntent = await _paymentIntentService.CancelAsync(paymentId);
-        
-        if (!_paymentStore.TryGetValue(paymentId, out var existing))
-            throw new KeyNotFoundException($"Payment {paymentId} not found");
+        if (string.IsNullOrWhiteSpace(paymentId))
+        {
+            throw new ArgumentException("Payment ID cannot be null or empty", nameof(paymentId));
+        }
 
+        if (!_paymentStore.TryGetValue(paymentId, out var existing))
+        {
+            throw new KeyNotFoundException($"Payment {paymentId} not found");
+        }
+
+        var paymentIntent = await _paymentIntentService.CancelAsync(paymentId);
         var response = MapToResponse(paymentIntent, existing.Amount);
         _paymentStore.TryUpdate(paymentId, response, existing);
         return response;
