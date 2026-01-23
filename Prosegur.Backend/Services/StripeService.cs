@@ -105,6 +105,24 @@ public class StripeService : IStripeService
             throw new KeyNotFoundException($"Payment {paymentId} not found");
         }
 
+        // Validate payment is in a confirmable state
+        if (IsTerminalState(existing.Status))
+        {
+            return existing; // Already processed, return current state
+        }
+
+        // Optimistic locking: mark as processing to prevent concurrent modifications
+        var processingPayment = existing with 
+        { 
+            Status = "PROCESSING",
+            UpdatedAt = DateTime.UtcNow 
+        };
+        
+        if (!_paymentStore.TryUpdate(paymentId, processingPayment, existing))
+        {
+            throw new InvalidOperationException("Payment is already being processed by another request");
+        }
+
         try
         {
             var paymentMethodId = shouldSucceed ? "pm_card_visa" : "pm_card_chargeDeclined";
@@ -128,13 +146,13 @@ public class StripeService : IStripeService
         }
         catch (StripeException ex)
         {
-            var errorResponse = existing with
+            var errorResponse = processingPayment with
             {
                 Status = "DECLINED",
                 Message = ex.StripeError?.Message ?? ex.Message,
                 UpdatedAt = DateTime.UtcNow
             };
-            _paymentStore.TryUpdate(paymentId, errorResponse, existing);
+            _paymentStore.TryUpdate(paymentId, errorResponse, processingPayment);
             return errorResponse;
         }
     }
@@ -182,5 +200,10 @@ public class StripeService : IStripeService
             CreatedAt = paymentIntent.Created,
             UpdatedAt = DateTime.UtcNow
         };
+    }
+
+    private static bool IsTerminalState(string status)
+    {
+        return status is "APPROVED" or "DECLINED" or "CANCELED" or "ERROR" or "FAILED";
     }
 }

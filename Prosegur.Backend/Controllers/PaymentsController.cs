@@ -78,12 +78,28 @@ public class PaymentsController : ControllerBase
 
         try
         {
+            // Verify current payment status before attempting confirmation
+            var currentStatus = await _stripeService.GetPaymentStatusAsync(paymentId);
+            
+            if (currentStatus.Status != "PENDING")
+            {
+                return BadRequest(new 
+                { 
+                    error = $"Payment cannot be confirmed. Current status: {currentStatus.Status}",
+                    currentStatus 
+                });
+            }
+
             var response = await _stripeService.ConfirmPaymentAsync(paymentId, shouldSucceed);
             return Ok(response);
         }
         catch (KeyNotFoundException)
         {
             return NotFound(new { error = $"Payment {paymentId} not found" });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(new { error = ex.Message });
         }
     }
 
