@@ -141,7 +141,14 @@ public class StripeService : IStripeService
             }
 
             var response = MapToResponse(paymentIntent, existing.Amount);
-            _paymentStore.TryUpdate(paymentId, response, existing);
+            
+            // For declined payments, ensure status is DECLINED regardless of Stripe's response
+            if (!shouldSucceed && response.Status != "APPROVED")
+            {
+                response = response with { Status = "DECLINED" };
+            }
+            
+            _paymentStore.TryUpdate(paymentId, response, processingPayment);
             return response;
         }
         catch (StripeException ex)
@@ -188,6 +195,12 @@ public class StripeService : IStripeService
         {
             "succeeded" => "APPROVED",
             "canceled" => "FAILED",
+            "payment_failed" => "DECLINED",           // Pago fallido explícito
+            "requires_payment_method" => "PENDING",   // Esperando método de pago (normal al crear)
+            "requires_confirmation" => "PENDING",
+            "requires_action" => "PENDING",
+            "requires_capture" => "PENDING",
+            "processing" => "PENDING",
             _ => "PENDING"
         };
 

@@ -80,23 +80,6 @@
             color: white;
         }
         
-        .btn-refresh::before {
-            content: '';
-            display: inline-block;
-            width: 12px;
-            height: 12px;
-            border: 2px solid currentColor;
-            border-top-color: transparent;
-            border-radius: 50%;
-            margin-right: 8px;
-            animation: spin 1s linear infinite;
-        }
-        
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        
         .payment-card { 
             background: white; 
             padding: 25px; 
@@ -206,6 +189,52 @@
         
         .btn-warning:hover { background: #7f8c8d; }
         
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+        
+        .btn-loading {
+            position: relative;
+            pointer-events: none;
+        }
+        
+        .btn-loading::before {
+            content: '';
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            top: 50%;
+            left: 50%;
+            margin-left: -8px;
+            margin-top: -8px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+        }
+        
+        .btn-loading span {
+            opacity: 0;
+        }
+        
+        .payment-card.processing {
+            opacity: 0.7;
+            pointer-events: none;
+        }
+        
+        .payment-card.removing {
+            animation: slideOut 0.3s ease-out forwards;
+        }
+        
+        @keyframes slideOut {
+            to {
+                opacity: 0;
+                transform: translateX(100%);
+            }
+        }
+        
         .no-payments {
             background: white;
             padding: 60px;
@@ -295,7 +324,7 @@
                 }
                 
                 container.innerHTML = payments.map(payment => `
-                    <div class="payment-card">
+                    <div class="payment-card" id="payment-${payment.paymentId}" data-payment-id="${payment.paymentId}">
                         <div class="payment-info">
                             <div class="payment-id">Payment ID</div>
                             <div class="payment-amount">$${payment.amount.toFixed(2)}</div>
@@ -307,20 +336,81 @@
                             <p><strong>Updated:</strong> ${new Date(payment.updatedAt).toLocaleString()}</p>
                         </div>
                         <div class="action-buttons">
-                            <button class="btn btn-success" onclick="approve('${payment.paymentId}')">
-                                Approve
+                            <button class="btn btn-success" onclick="handleAction('${payment.paymentId}', 'approve', this)">
+                                <span>Approve</span>
                             </button>
-                            <button class="btn btn-danger" onclick="decline('${payment.paymentId}')">
-                                Decline
+                            <button class="btn btn-danger" onclick="handleAction('${payment.paymentId}', 'decline', this)">
+                                <span>Decline</span>
                             </button>
-                            <button class="btn btn-warning" onclick="cancel('${payment.paymentId}')">
-                                Cancel
+                            <button class="btn btn-warning" onclick="handleAction('${payment.paymentId}', 'cancel', this)">
+                                <span>Cancel</span>
                             </button>
                         </div>
                     </div>
                 `).join('');
             } catch (error) {
                 console.error('Error loading payments:', error);
+            }
+        }
+
+        async function handleAction(paymentId, action, button) {
+            const card = document.getElementById(`payment-${paymentId}`);
+            const allButtons = card.querySelectorAll('.btn');
+            
+            // Deshabilitar todos los botones y marcar el activo como loading
+            allButtons.forEach(btn => {
+                btn.disabled = true;
+                if (btn === button) {
+                    btn.classList.add('btn-loading');
+                }
+            });
+            
+            // Marcar la tarjeta como procesando
+            card.classList.add('processing');
+            
+            try {
+                let response;
+                
+                switch(action) {
+                    case 'approve':
+                        response = await fetch(`/api/payments/${paymentId}/confirm?shouldSucceed=true`, { 
+                            method: 'POST' 
+                        });
+                        break;
+                    case 'decline':
+                        response = await fetch(`/api/payments/${paymentId}/confirm?shouldSucceed=false`, { 
+                            method: 'POST' 
+                        });
+                        break;
+                    case 'cancel':
+                        response = await fetch(`/api/payments/${paymentId}/cancel`, { 
+                            method: 'POST' 
+                        });
+                        break;
+                }
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Operation failed');
+                }
+                
+                // Animación de salida antes de remover
+                card.classList.add('removing');
+                
+                // Esperar a que termine la animación antes de recargar
+                setTimeout(() => {
+                    loadPayments();
+                }, 300);
+                
+            } catch (error) {
+                // Re-habilitar botones en caso de error
+                allButtons.forEach(btn => {
+                    btn.disabled = false;
+                    btn.classList.remove('btn-loading');
+                });
+                card.classList.remove('processing');
+                
+                alert(`Error: ${error.message}`);
             }
         }
 
